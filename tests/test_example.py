@@ -2,8 +2,9 @@
 
 import tempfile
 from pathlib import Path
+from typing import Generator
 from unittest import mock
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pandas as pd
 import pytest
@@ -12,23 +13,25 @@ from bs4 import BeautifulSoup
 from src.main import download_documents, save_html_content, save_tables_as_csv
 
 # Assuming you have a scraper module in your source directory
-try:
-    from src.scraper import extract_links, extract_text_from_html
-except ImportError:
-    # Define stub functions for testing if actual module doesn't exist
-    def extract_text_from_html(html_content: str) -> str:
-        """Extract plain text from HTML content."""
-        soup = BeautifulSoup(html_content, "html.parser")
-        return soup.get_text(strip=True)
 
-    def extract_links(html_content: str) -> list[str]:
-        """Extract links from HTML content."""
-        soup = BeautifulSoup(html_content, "html.parser")
-        return [a.get("href", "") for a in soup.find_all("a")]
+
+# src.scraper does not exist; define stubs for extract_links and extract_text_from_html
+def extract_text_from_html(html_content: str) -> str:
+    """Extract plain text from HTML content."""
+    soup: BeautifulSoup = BeautifulSoup(html_content, "html.parser")
+    return soup.get_text(strip=True)
+
+
+def extract_links(html_content: str) -> list[str]:
+    """Extract links from HTML content."""
+    soup: BeautifulSoup = BeautifulSoup(html_content, "html.parser")
+    from bs4.element import Tag
+
+    return [str(a.get("href")) for a in soup.find_all("a") if isinstance(a, Tag) and isinstance(a.get("href"), str)]
 
 
 @pytest.fixture
-def mock_soup():
+def mock_soup() -> BeautifulSoup:
     """Create a mock BeautifulSoup object for testing.
 
     Returns:
@@ -65,13 +68,13 @@ def sample_html() -> str:
 
 
 class MockResponse:
-    def __init__(self):
+    def __init__(self) -> None:
         self.status_code = 200
 
-    def iter_content(self, chunk_size=8192):
+    def iter_content(self, chunk_size: int = 8192) -> Generator[bytes, None, None]:
         yield b"test data"
 
-    def raise_for_status(self):
+    def raise_for_status(self) -> None:
         pass
 
 
@@ -99,26 +102,36 @@ def test_extract_links() -> None:
     assert "https://test.com" in links
 
 
-def test_download_documents(tmp_path, monkeypatch):
-    monkeypatch.setattr("requests.get", lambda url, stream, timeout: MockResponse())
+def test_download_documents(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Accept *args and **kwargs to match the signature used in production code
+    from typing import Any
+
+    def mock_requests_get(url: str, *args: Any, **kwargs: Any) -> MockResponse:
+        return MockResponse()
+
+    monkeypatch.setattr(
+        "requests.get",
+        mock_requests_get,
+    )
     links = ["http://example.com/doc1.pdf"]
     download_documents(links, str(tmp_path))
     files = list(tmp_path.iterdir())
     assert any(f.name == "doc1.pdf" for f in files)
 
 
-def test_save_tables_as_csv(tmp_path):
+def test_save_tables_as_csv(tmp_path: Path) -> None:
     df = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
     save_tables_as_csv([df], str(tmp_path))
     files = list(tmp_path.iterdir())
     assert any(f.name.startswith("table_") and f.suffix == ".csv" for f in files)
     # Check CSV content
     csv_file = next(f for f in files if f.suffix == ".csv")
-    loaded = pd.read_csv(csv_file)
-    assert loaded.equals(df)
+    loaded = pd.read_csv(csv_file)  # type: ignore[no-untyped-call]
+    # Type ignore is used to suppress pandas stub warnings for overloaded signatures
+    assert loaded.equals(df)  # type: ignore[attr-defined]
 
 
-def test_save_html_content(mock_soup):
+def test_save_html_content(mock_soup: BeautifulSoup) -> None:
     """Test that the save_html_content function saves HTML content to a file.
 
     Args:
@@ -147,7 +160,12 @@ def test_save_html_content(mock_soup):
 @mock.patch("src.main.save_html_content")
 @mock.patch("src.main.parse_args")
 @mock.patch("src.main.scrape_website")
-def test_main_always_saves_html_content(mock_scrape_website, mock_parse_args, mock_save_html, mock_soup):
+def test_main_always_saves_html_content(
+    mock_scrape_website: Mock,
+    mock_parse_args: Mock,
+    mock_save_html: Mock,
+    mock_soup: BeautifulSoup,
+) -> None:
     """Test that main always calls save_html_content with the soup and output directory."""
     from src.main import main
 
@@ -168,19 +186,14 @@ def test_main_always_saves_html_content(mock_scrape_website, mock_parse_args, mo
 
 
 @patch("requests.get")
-def test_mock_example(mock_get, temp_output_dir) -> None:
-    """Test example with mocked requests and output directory."""
-    # Setup the mock
-    mock_response = mock_get.return_value
-    mock_response.status_code = 200
-    mock_response.text = "<html><body>Mocked response</body></html>"
-
-    # Assert directory exists
-    assert temp_output_dir.parent.exists()
-
-    # Example test using mock
-    import requests
-
-    response = requests.get("https://example.com")
-    assert response.status_code == 200
-    assert "Mocked response" in response.text
+def test_download_documents_mocked(mock_get: Mock, temp_output_dir: Path) -> None:
+    """Test download_documents with a mocked requests.get."""
+    mock_response: MockResponse = MockResponse()
+    mock_get.return_value = mock_response
+    links = ["http://example.com/doc1.pdf"]
+    download_documents(links, str(temp_output_dir))
+    files = list(temp_output_dir.iterdir())
+    assert any(f.name == "doc1.pdf" for f in files)
+    # Check file existence
+    file_path = temp_output_dir / "doc1.pdf"
+    assert file_path.exists()

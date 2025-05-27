@@ -38,7 +38,7 @@ def sample_html() -> str:
 
 
 @pytest.fixture
-def temp_output_dir(tmp_path) -> Path:
+def temp_output_dir(tmp_path: Path) -> Path:
     """Create a temporary directory for test output files.
 
     Args:

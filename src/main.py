@@ -6,8 +6,6 @@ This script allows users to scrape tables and documents from a specified website
 import argparse
 import logging
 from io import StringIO
-
-# Configure logging to write to a file (with rotation) and optionally to the console.
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from urllib.parse import urljoin
@@ -15,6 +13,12 @@ from urllib.parse import urljoin
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+
+
+class WebScrapingError(Exception):
+    """Custom exception for webscraping errors."""
+
+    pass
 
 
 def configure_logging(log_dir: str, log_to_console: bool = False) -> None:
@@ -35,7 +39,7 @@ def configure_logging(log_dir: str, log_to_console: bool = False) -> None:
     )
     file_handler.setFormatter(formatter)
 
-    handlers = [file_handler]
+    handlers: list[logging.Handler] = [file_handler]
     if log_to_console:
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
@@ -114,8 +118,8 @@ def scrape_website(url: str) -> BeautifulSoup:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
     except requests.RequestException as exc:
-        logger.error(f"Failed to fetch {url}: {exc}")
-        raise
+        logger.error(f"Failed to fetch {url}: {exc}", exc_info=True)
+        raise WebScrapingError(f"Failed to fetch {url}") from exc
     # Reason: Use 'html.parser' for built-in compatibility; can switch to 'lxml' if needed
     return BeautifulSoup(response.text, "html.parser")
 
@@ -134,7 +138,7 @@ def extract_tables_from_soup(soup: BeautifulSoup) -> list[pd.DataFrame]:
     for idx, table in enumerate(tables):
         try:
             html_str = str(table)
-            dfs = pd.read_html(StringIO(html_str))
+            dfs: list[pd.DataFrame] = pd.read_html(StringIO(html_str))
             if dfs and not dfs[0].empty:
                 dataframes.append(dfs[0])
             else:
@@ -180,6 +184,7 @@ def download_documents(links: list[str], output_dir: str) -> None:
         output_dir (str): Directory to save downloaded documents.
     """
     output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)  # Ensure output directory exists
     for url in links:
         try:
             filename = url.split("/")[-1]
@@ -192,7 +197,9 @@ def download_documents(links: list[str], output_dir: str) -> None:
                         f.write(chunk)
             logger.info(f"Downloaded: {filename}")
         except requests.RequestException as exc:
-            logger.error(f"Failed to download {url}: {exc}")
+            logger.error(f"Failed to download {url}: {exc}", exc_info=True)
+        except Exception as exc:
+            logger.error(f"Unexpected error downloading {url}: {exc}", exc_info=True)
 
 
 def save_tables_as_csv(tables: list[pd.DataFrame], output_dir: str) -> None:
@@ -205,8 +212,11 @@ def save_tables_as_csv(tables: list[pd.DataFrame], output_dir: str) -> None:
     output_path = Path(output_dir)
     for idx, df in enumerate(tables):
         csv_path = output_path / f"table_{idx + 1}.csv"
-        df.to_csv(csv_path, index=False)
-        logger.info(f"Saved table {idx + 1} to {csv_path}")
+        try:
+            df.to_csv(csv_path, index=False)
+            logger.info(f"Saved table {idx + 1} to {csv_path}")
+        except Exception as exc:
+            logger.error(f"Failed to save table {idx + 1} to {csv_path}: {exc}", exc_info=True)
 
 
 def save_html_content(soup: BeautifulSoup, output_dir: str) -> None:
@@ -222,10 +232,12 @@ def save_html_content(soup: BeautifulSoup, output_dir: str) -> None:
     prettified = soup.prettify()
     if not isinstance(prettified, str):
         prettified = str(prettified)
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(prettified)
-
-    logger.info(f"Saved HTML content to {html_path}")
+    try:
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(prettified)
+        logger.info(f"Saved HTML content to {html_path}")
+    except Exception as exc:
+        logger.error(f"Failed to save HTML content to {html_path}: {exc}", exc_info=True)
 
 
 def main() -> None:
@@ -241,7 +253,11 @@ def main() -> None:
     output_path = Path(args.output)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    soup = scrape_website(args.url)
+    try:
+        soup = scrape_website(args.url)
+    except WebScrapingError as exc:
+        logger.error(f"Aborting: {exc}")
+        return
 
     # Always save the HTML content
     save_html_content(soup, args.output)
@@ -263,6 +279,8 @@ def main() -> None:
     # Download documents if requested
     if args.download_documents and download_links:
         download_documents(download_links, args.output)
+
+    # Note: For production workloads, consider using async libraries (e.g., httpx, aiofiles) for I/O-bound operations.
 
 
 if __name__ == "__main__":

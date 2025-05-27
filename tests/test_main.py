@@ -1,6 +1,7 @@
 import tempfile
 from pathlib import Path
 from unittest import mock
+from unittest.mock import Mock
 
 import pandas as pd
 import pytest
@@ -40,7 +41,7 @@ HTML_WITH_LINKS = """
 
 
 @pytest.fixture
-def mock_soup():
+def mock_soup() -> BeautifulSoup:
     """Create a mock BeautifulSoup object for testing.
 
     Returns:
@@ -58,31 +59,37 @@ def mock_soup():
     return BeautifulSoup(html_content, "html.parser")
 
 
-def test_scrape_website_success(monkeypatch):
+def test_scrape_website_success(monkeypatch: pytest.MonkeyPatch) -> None:
     class MockResponse:
-        def __init__(self, text):
-            self.text = text
+        def __init__(self, text: str) -> None:
+            self.text: str = text
 
-        def raise_for_status(self):
+        def raise_for_status(self) -> None:
             pass
 
-    monkeypatch.setattr("requests.get", lambda url, timeout: MockResponse(HTML_WITH_TABLE))
+    def mock_requests_get(url: str, timeout: float) -> MockResponse:
+        return MockResponse(HTML_WITH_TABLE)
+
+    monkeypatch.setattr("requests.get", mock_requests_get)
     soup = scrape_website("http://example.com")
     assert isinstance(soup, BeautifulSoup)
     assert soup.find("table") is not None
 
 
-def test_scrape_website_failure(monkeypatch):
+def test_scrape_website_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     class MockResponse:
-        def raise_for_status(self):
+        def raise_for_status(self) -> None:
             raise Exception("HTTP error")
 
-    monkeypatch.setattr("requests.get", lambda url, timeout: MockResponse())
+    def mock_requests_get(url: str, timeout: float) -> MockResponse:
+        return MockResponse()
+
+    monkeypatch.setattr("requests.get", mock_requests_get)
     with pytest.raises(Exception):
         scrape_website("http://badurl.com")
 
 
-def test_extract_tables_from_soup():
+def test_extract_tables_from_soup() -> None:
     soup = BeautifulSoup(HTML_WITH_TABLE, "html.parser")
     dfs = extract_tables_from_soup(soup)
     assert len(dfs) == 1
@@ -91,13 +98,13 @@ def test_extract_tables_from_soup():
     assert dfs[0].iloc[0, 0] == "A"
 
 
-def test_extract_tables_from_soup_no_tables():
+def test_extract_tables_from_soup_no_tables() -> None:
     soup = BeautifulSoup("<html><body>No tables here</body></html>", "html.parser")
     dfs = extract_tables_from_soup(soup)
     assert dfs == []
 
 
-def test_extract_download_links_absolute_and_relative():
+def test_extract_download_links_absolute_and_relative() -> None:
     soup = BeautifulSoup(HTML_WITH_LINKS, "html.parser")
     links = extract_download_links(soup, "http://example.com")
     assert "http://example.com/doc1.pdf" in links
@@ -106,45 +113,48 @@ def test_extract_download_links_absolute_and_relative():
     assert len(links) == 2
 
 
-def test_extract_download_links_custom_extension():
+def test_extract_download_links_custom_extension() -> None:
     soup = BeautifulSoup(HTML_WITH_LINKS, "html.parser")
     links = extract_download_links(soup, "http://example.com", extensions=[".txt"])
     assert links == ["http://example.com/not_a_doc.txt"]
 
 
-def test_download_documents(tmp_path, monkeypatch):
+def test_download_documents(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Mock requests.get to return a fake file stream
     class MockResponse:
-        def __init__(self):
-            self.status_code = 200
-            self.iter_content_called = False
+        def __init__(self) -> None:
+            self.status_code: int = 200
+            self.iter_content_called: bool = False
 
-        def raise_for_status(self):
+        def raise_for_status(self) -> None:
             pass
 
-        def iter_content(self, chunk_size=8192):
+        def iter_content(self, chunk_size: int = 8192):
             self.iter_content_called = True
             yield b"testdata"
 
-    monkeypatch.setattr("requests.get", lambda url, stream, timeout: MockResponse())
+    def mock_requests_get(url: str, stream: bool, timeout: float) -> MockResponse:
+        return MockResponse()
+
+    monkeypatch.setattr("requests.get", mock_requests_get)
     links = ["http://example.com/doc1.pdf"]
     download_documents(links, str(tmp_path))
     files = list(tmp_path.iterdir())
     assert any(f.name == "doc1.pdf" for f in files)
 
 
-def test_save_tables_as_csv(tmp_path):
+def test_save_tables_as_csv(tmp_path: Path) -> None:
     df = pd.DataFrame({"A": [1, 2], "B": [3, 4]})
     save_tables_as_csv([df], str(tmp_path))
     files = list(tmp_path.iterdir())
     assert any(f.name.startswith("table_") and f.suffix == ".csv" for f in files)
     # Check CSV content
     csv_file = next(f for f in files if f.suffix == ".csv")
-    loaded = pd.read_csv(csv_file)
-    assert loaded.equals(df)
+    loaded = pd.read_csv(csv_file)  # type: ignore[no-untyped-call]
+    assert loaded.equals(df)  # type: ignore[attr-defined]
 
 
-def test_save_html_content(mock_soup):
+def test_save_html_content(mock_soup: BeautifulSoup) -> None:
     """Test that the save_html_content function saves HTML content to a file.
 
     Args:
@@ -171,7 +181,13 @@ def test_save_html_content(mock_soup):
 @mock.patch("src.main.scrape_website")
 @mock.patch("src.main.parse_args")
 @mock.patch("src.main.save_html_content")
-def test_main_always_saves_html_content(mock_save_html, mock_parse_args, mock_scrape_website, mock_soup):
+def test_main_always_saves_html_content(
+    mock_save_html: Mock,
+    mock_parse_args: Mock,
+    mock_scrape_website: Mock,
+    mock_soup: BeautifulSoup,
+    tmp_path: Path,
+) -> None:
     """Test that the main function always saves HTML content regardless of other parameters.
 
     Args:
@@ -179,11 +195,12 @@ def test_main_always_saves_html_content(mock_save_html, mock_parse_args, mock_sc
         mock_parse_args: Mock for parse_args function.
         mock_scrape_website: Mock for scrape_website function.
         mock_soup (BeautifulSoup): Mock BeautifulSoup object from fixture.
+        tmp_path (Path): Temporary directory for test output.
     """
     # Setup mocks
     mock_args = mock.MagicMock()
     mock_args.url = "https://example.com"
-    mock_args.output = "output_dir"
+    mock_args.output = str(tmp_path)  # Use temp directory for output
     mock_args.find_download_links = False
     mock_args.download_tables = False
     mock_args.download_documents = False
@@ -204,8 +221,14 @@ def test_main_always_saves_html_content(mock_save_html, mock_parse_args, mock_sc
 @mock.patch("src.main.extract_tables_from_soup")
 @mock.patch("src.main.save_tables_as_csv")
 def test_main_with_download_tables(
-    mock_save_csv, mock_extract_tables, mock_save_html, mock_parse_args, mock_scrape_website, mock_soup
-):
+    mock_save_csv: Mock,
+    mock_extract_tables: Mock,
+    mock_save_html: Mock,
+    mock_parse_args: Mock,
+    mock_scrape_website: Mock,
+    mock_soup: BeautifulSoup,
+    tmp_path: Path,
+) -> None:
     """Test that the main function saves HTML content even when downloading tables.
 
     Args:
@@ -215,11 +238,12 @@ def test_main_with_download_tables(
         mock_parse_args: Mock for parse_args function.
         mock_scrape_website: Mock for scrape_website function.
         mock_soup (BeautifulSoup): Mock BeautifulSoup object from fixture.
+        tmp_path (Path): Temporary directory for test output.
     """
     # Setup mocks
     mock_args = mock.MagicMock()
     mock_args.url = "https://example.com"
-    mock_args.output = "output_dir"
+    mock_args.output = str(tmp_path)  # Use temp directory for output
     mock_args.find_download_links = False
     mock_args.download_tables = True  # Enable table downloading
     mock_args.download_documents = False
@@ -239,7 +263,7 @@ def test_main_with_download_tables(
 
 
 @pytest.mark.integration
-def test_integration_save_html_content():
+def test_integration_save_html_content() -> None:
     """Integration test for saving HTML content to the output directory.
 
     This test creates a real BeautifulSoup object and saves it to a temporary directory.
