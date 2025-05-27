@@ -9,11 +9,7 @@ import pandas as pd
 import pytest
 from bs4 import BeautifulSoup
 
-from src.main import (
-    download_documents,
-    save_html_content,
-    save_tables_as_csv,
-)
+from src.main import download_documents, save_html_content, save_tables_as_csv
 
 # Assuming you have a scraper module in your source directory
 try:
