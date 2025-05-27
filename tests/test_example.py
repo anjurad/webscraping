@@ -161,6 +161,7 @@ def test_main_always_saves_html_content(mock_scrape_website, mock_parse_args, mo
         download_tables = False
         find_download_links = False
         download_documents = False
+        log_to_console = False
 
     mock_parse_args.return_value = Args()
     mock_scrape_website.return_value = mock_soup
