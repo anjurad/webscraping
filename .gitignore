@@ -1,0 +1,41 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+env/
+venv/
+
+# Output folder
+output/
+
+# Python cache and test files
+.mypy_cache/
+.pytest_cache/
+.coverage
+*.log
+
+# Jupyter/IPython
+*.ipynb_checkpoints
+
+# Environment files
+.env
+.env.*
+
+# Dependency lock files
+uv.lock
+Pipfile.lock
+poetry.lock
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Test output
+htmlcov/
+coverage.xml
