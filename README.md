@@ -1,4 +1,6 @@
-# Webscraping Utility
+# Webscraping Project
+
+Repository: [https://github.com/anjurad/webscraping/](https://github.com/anjurad/webscraping/)
 
 A Python 3.11+ command-line tool for scraping tables and downloadable documents (e.g., PDFs) from a specified website URL.
 
@@ -18,13 +20,28 @@ A Python 3.11+ command-line tool for scraping tables and downloadable documents 
 - [Ruff](https://docs.astral.sh/ruff/) for formatting/linting (optional, for development)
 - See `requirements.txt` for dependencies.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Command-line Arguments](#command-line-arguments)
+- [Logging](#logging)
+- [Testing](#testing)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Overview
+
+A Python 3.11+ command-line tool for scraping tables and downloadable documents (e.g., PDFs) from a specified website URL.
+
 ## Installation
 
 ### Using UV (Recommended)
 
 ```bash
 # Clone the repository
-git clone <repo-url>
+git clone https://github.com/anjurad/webscraping/
 cd webscraping
 
 # Create and activate a virtual environment with UV
@@ -48,40 +65,28 @@ pip install -r requirements.txt
 ## Usage
 
 ```bash
-python src/main.py <url> [--output OUTPUT_DIR] [--find-download-links] [--download-tables] [--download-documents]
+python src/main.py <url> [--output OUTPUT_DIR] [--find-download-links] [--download-tables] [--download-documents] [--logging-level LOGGING_LEVEL]
 ```
 
-### Arguments
+## Command-line Arguments
 
-- `<url>`: The URL of the website to scrape (required).
-- `--output`: Directory to save scraped data (default: `output`).
-- `--find-download-links`: Print found document download links.
-- `--download-tables`: Extract and save tables as CSV files.
-- `--download-documents`: Download found documents to the output directory.
+The script accepts the following arguments:
 
-### Example
+- `url` (positional, required): The URL of the website to scrape.
+- `--output` (optional, default: `output`): Directory to save scraped data.
+- `--find-download-links` (flag, optional): Find and print download links for documents (default: False).
+- `--download-tables` (flag, optional): Extract and save tables as CSV files (default: False).
+- `--download-documents` (flag, optional): Download the found document links to the output directory (default: False).
+- `--log-to-console` (flag, optional): Also log to the console in addition to the log file.
 
+Example usage:
 ```bash
-python src/main.py "https://example.com/page" --download-tables --find-download-links --download-documents
+python src/main.py "https://example.com" --output results --download-tables --find-download-links --log-to-console
 ```
 
-## Logging Configuration
+## Logging
 
-By default, logs are written to `output/webscraping.log` with rotation (max 2MB, 3 backups).
-
-To also log to the console, change the following line in `src/main.py`:
-
-```
-configure_logging(log_to_console=False)
-```
-
-to
-
-```
-configure_logging(log_to_console=True)
-```
-
-This will enable logging to both the file and the console.
+Logging is configurable via the `--log-to-console` argument. By default, logs are written to `webscraping.log` in the output directory. Use `--log-to-console` to also print logs to the console.
 
 ## Testing
 
@@ -89,18 +94,15 @@ This will enable logging to both the file and the console.
 - Mock network calls for unit tests; do not hit live websites.
 - Code coverage is enforced at ≥90% (see `pyproject.toml`).
 
-## Development
+## Contributing
 
-- Format code with Ruff: `ruff format .`
-- Lint and sort imports: `ruff check .`
-- Keep modules < 400 LOC; split logic into packages under `/src` as needed.
-- The package is PEP 561 typed (see `src/py.typed`).
+Contributions are welcome! Please fork the repository at [https://github.com/anjurad/webscraping/](https://github.com/anjurad/webscraping/) and submit a pull request.
 
-## Repository Hygiene
-
-- The `.gitignore` is configured to exclude Python cache, environment, test output, and the `output/` directory.
-- All scraped content, including `scraped_content.html` and CSVs, is saved in the `output/` directory (not tracked by git).
+- Format code with [Ruff](https://docs.astral.sh/ruff/) using `ruff format`.
+- Lint and sort imports with `ruff check`.
+- Keep line length ≤ 120 chars.
+- Follow Google-style docstrings for public functions, classes, and modules.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
